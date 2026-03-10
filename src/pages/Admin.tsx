@@ -49,6 +49,8 @@ export function AdminPage() {
     purchasedSignals,
     purchasedCopyTrades,
     approveBotPurchase,
+    approveBotActivation,
+    approveSignalPurchase,
     approveSignalSubscription,
     terminateBot,
     terminateSignal,
@@ -91,7 +93,7 @@ export function AdminPage() {
     addBalance: { userId: '', amount: '' },
     createBot: { userId: '', botName: '', allocatedAmount: '', performance: '', totalEarned: '' },
     createSignal: { userId: '', providerName: '', allocation: '', winRate: '', cost: '' },
-    createCopyTrade: { userId: '', traderName: '', allocation: '', winRate: '', durationValue: '7', durationType: 'days' }
+    createCopyTrade: { userId: '', traderName: '', allocation: '', winRate: '', durationValue: '7', durationType: 'days', traderReturn: '' }
   });
   // Wallet Management State
   const [walletUserId, setWalletUserId] = useState('');
@@ -100,6 +102,15 @@ export function AdminPage() {
   const [walletType, setWalletType] = useState('DEPOSIT');
   const [walletCurrency, setWalletCurrency] = useState('USD');
   const [walletNetwork, setWalletNetwork] = useState('');
+
+  // Bot approval outcomes and durations
+  const [botOutcomes, setBotOutcomes] = useState<Record<string, 'win' | 'lose'>>({});
+  const [botDurations, setBotDurations] = useState<Record<string, string>>({});
+
+  // Signal approval outcomes and durations
+  const [signalOutcomes, setSignalOutcomes] = useState<Record<string, 'win' | 'lose'>>({});
+  const [signalDurations, setSignalDurations] = useState<Record<string, string>>({});
+  const [signalDurationTypes, setSignalDurationTypes] = useState<Record<string, 'hours' | 'days'>>({});
 
   const filteredUsers = allUsers.filter(u => 
     u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
@@ -411,46 +422,73 @@ export function AdminPage() {
   // Bot & Signal Approvals Tab
   const ApprovalTab = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats Section */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-2">
-          <p className="text-xs text-[#8b949e] uppercase">Pending Bot Purchases</p>
-          <p className="text-3xl font-bold text-white">{purchasedBots.filter(b => b.status === 'PENDING_APPROVAL').length}</p>
-          <p className="text-sm text-[#2962ff]">Awaiting approval</p>
+          <p className="text-xs text-[#8b949e] uppercase">Pending Purchases</p>
+          <p className="text-3xl font-bold text-orange-500">{purchasedBots.filter(b => b.status === 'PENDING_APPROVAL').length}</p>
+          <p className="text-xs text-orange-500">Need approval</p>
         </div>
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-2">
-          <p className="text-xs text-[#8b949e] uppercase">Pending Signal Subscriptions</p>
-          <p className="text-3xl font-bold text-white">{purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').length}</p>
-          <p className="text-sm text-yellow-500">Awaiting approval</p>
+          <p className="text-xs text-[#8b949e] uppercase">Approved for Allocation</p>
+          <p className="text-3xl font-bold text-[#2962ff]">{purchasedBots.filter(b => b.status === 'APPROVED_FOR_ALLOCATION').length}</p>
+          <p className="text-xs text-[#2962ff]">Waiting for capital</p>
         </div>
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-2">
-          <p className="text-xs text-[#8b949e] uppercase">Total Pending</p>
-          <p className="text-3xl font-bold text-white">{purchasedBots.filter(b => b.status === 'PENDING_APPROVAL').length + purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').length}</p>
-          <p className="text-sm text-[#8b949e]">All pending items</p>
+          <p className="text-xs text-[#8b949e] uppercase">Ready for Activation</p>
+          <p className="text-3xl font-bold text-yellow-500">{purchasedBots.filter(b => b.status === 'APPROVED_FOR_ALLOCATION' && b.allocatedAmount > 0).length}</p>
+          <p className="text-xs text-yellow-500">Capital allocated</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-2">
+          <p className="text-xs text-[#8b949e] uppercase">Active Bots</p>
+          <p className="text-3xl font-bold text-[#26a69a]">{purchasedBots.filter(b => b.status === 'ACTIVE').length}</p>
+          <p className="text-xs text-[#26a69a]">Running now</p>
+        </div>
+        <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-2">
+          <p className="text-xs text-[#8b949e] uppercase">Pending Signals</p>
+          <p className="text-3xl font-bold text-yellow-500">{purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').length}</p>
+          <p className="text-xs text-yellow-500">Need approval</p>
         </div>
       </div>
 
-      {/* Pending Bot Purchases */}
+      {/* Workflow Info Box */}
+      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+        <p className="text-sm text-[#2962ff] font-bold mb-2">ℹ️ Bot/Signal Approval Workflow</p>
+        <div className="text-xs text-[#8b949e] space-y-1">
+          <p><strong>Bots (3 steps):</strong></p>
+          <p>1️⃣ Admin approves purchase → Status: APPROVED_FOR_ALLOCATION</p>
+          <p>2️⃣ User allocates capital in Bot page</p>
+          <p>3️⃣ Admin activates with win/loss settings → Status: ACTIVE</p>
+          <p><strong>Signals (1 step):</strong></p>
+          <p>1️⃣ Admin approves with win/loss settings → Status: ACTIVE</p>
+        </div>
+      </div>
+
+      {/* Pending Bot Purchases - First Approval */}
       <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Pending Bot Purchases</h3>
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-orange-500" /> Pending Bot Purchases (Step 1)
+        </h3>
         {purchasedBots.filter(b => b.status === 'PENDING_APPROVAL').length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {purchasedBots.filter(b => b.status === 'PENDING_APPROVAL').map((bot) => {
               const user = allUsers.find(u => u.id === bot.userId);
               return (
-                <div key={bot.id} className="flex items-center justify-between p-4 bg-[#0d1117] rounded-lg">
+                <div key={bot.id} className="flex items-center justify-between p-4 bg-orange-500/5 border border-orange-500/30 rounded-lg">
                   <div className="flex-1">
                     <p className="text-white font-medium">{bot.botName}</p>
                     <p className="text-xs text-[#8b949e]">User: {user?.email}</p>
                     <p className="text-xs text-[#8b949e]">Performance: {bot.performance}%</p>
+                    <p className="text-xs text-orange-400 mt-1">Waiting for admin approval to proceed to capital allocation</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => approveBotPurchase(bot.id)}
-                      className="px-4 py-2 bg-[#26a69a]/20 text-[#26a69a] rounded-lg text-sm font-bold hover:bg-[#26a69a]/30 flex items-center gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" /> Approve
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      approveBotPurchase(bot.id);
+                    }}
+                    className="px-4 py-2 bg-orange-500/20 text-orange-400 rounded-lg text-sm font-bold hover:bg-orange-500/30 flex items-center gap-2"
+                  >
+                    <CheckCircle className="h-4 w-4" /> Approve Purchase
+                  </button>
                 </div>
               );
             })}
@@ -460,34 +498,388 @@ export function AdminPage() {
         )}
       </div>
 
-      {/* Pending Signal Subscriptions */}
+      {/* Bots Approved for Allocation - Waiting for Capital */}
       <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Pending Signal Subscriptions</h3>
-        {purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').length > 0 ? (
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-[#2962ff]" /> Bots Approved for Allocation (Step 2)
+        </h3>
+        {purchasedBots.filter(b => b.status === 'APPROVED_FOR_ALLOCATION' && b.allocatedAmount === 0).length > 0 ? (
           <div className="space-y-3">
-            {purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').map((signal) => {
-              const user = allUsers.find(u => u.id === signal.userId);
+            {purchasedBots.filter(b => b.status === 'APPROVED_FOR_ALLOCATION' && b.allocatedAmount === 0).map((bot) => {
+              const user = allUsers.find(u => u.id === bot.userId);
               return (
-                <div key={signal.id} className="flex items-center justify-between p-4 bg-[#0d1117] rounded-lg">
+                <div key={bot.id} className="flex items-center justify-between p-4 bg-[#2962ff]/5 border border-[#2962ff]/30 rounded-lg">
                   <div className="flex-1">
-                    <p className="text-white font-medium">{signal.providerName}</p>
+                    <p className="text-white font-medium">{bot.botName}</p>
                     <p className="text-xs text-[#8b949e]">User: {user?.email}</p>
-                    <p className="text-xs text-[#8b949e]">Win Rate: {signal.winRate}%</p>
+                    <p className="text-xs text-[#8b949e]">Performance: {bot.performance}%</p>
+                    <p className="text-xs text-[#2962ff] mt-1">Approved - waiting for user to allocate capital</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => approveSignalSubscription(signal.id)}
-                      className="px-4 py-2 bg-[#26a69a]/20 text-[#26a69a] rounded-lg text-sm font-bold hover:bg-[#26a69a]/30 flex items-center gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" /> Approve
-                    </button>
+                  <div className="text-right">
+                    <p className="text-xs text-[#8b949e]">User Balance</p>
+                    <p className="text-white font-bold">${(user?.balance || 0).toFixed(2)}</p>
                   </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <p className="text-center py-8 text-[#8b949e]">No pending signal subscriptions</p>
+          <p className="text-center py-8 text-[#8b949e]">No bots waiting for capital allocation</p>
+        )}
+      </div>
+
+      {/* Bots Ready for Activation - Second Approval */}
+      <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <Bot className="h-5 w-5 text-[#2962ff]" /> Bots Ready for Activation (Step 3)
+        </h3>
+        {purchasedBots.filter(b => b.status === 'APPROVED_FOR_ALLOCATION' && b.allocatedAmount > 0).length > 0 ? (
+          <div className="space-y-4">
+            {purchasedBots.filter(b => b.status === 'APPROVED_FOR_ALLOCATION' && b.allocatedAmount > 0).map((bot) => {
+              const user = allUsers.find(u => u.id === bot.userId);
+              const isAllocated = bot.allocatedAmount && bot.allocatedAmount > 0;
+              const hasBalance = (user?.balance || 0) >= bot.allocatedAmount;
+              
+              return (
+                <div key={bot.id} className={`border rounded-lg p-4 ${isAllocated ? 'bg-[#0d1117] border-[#21262d]' : 'bg-yellow-500/5 border-yellow-500/30'}`}>
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-lg font-bold text-white">{bot.botName}</h4>
+                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                          isAllocated 
+                            ? 'bg-[#26a69a]/20 text-[#26a69a]' 
+                            : 'bg-yellow-500/20 text-yellow-500'
+                        }`}>
+                          {isAllocated ? '✓ ALLOCATED' : '⚠ NEEDS ALLOCATION'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#8b949e] space-y-1">
+                        <p>User: <span className="text-white font-medium">{user?.email}</span></p>
+                        <p>Performance: <span className="text-[#2962ff] font-bold">{bot.performance}%</span></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Allocation Status */}
+                  <div className="bg-[#0d1117]/50 border border-[#21262d] rounded-lg p-3 mb-4 space-y-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-[#8b949e] uppercase mb-1">Allocated Amount</p>
+                        <p className="text-2xl font-bold text-white">${bot.allocatedAmount.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#8b949e] uppercase mb-1">User Balance</p>
+                        <p className={`text-2xl font-bold ${hasBalance ? 'text-[#26a69a]' : 'text-[#ef5350]'}`}>
+                          ${(user?.balance || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    {!isAllocated && (
+                      <div className="bg-yellow-500/10 text-yellow-700 text-xs p-2 rounded border border-yellow-500/20">
+                        ⚠️ User must allocate capital in Bot page before approval
+                      </div>
+                    )}
+                    {isAllocated && !hasBalance && (
+                      <div className="bg-red-500/10 text-red-400 text-xs p-2 rounded border border-red-500/20">
+                        ❌ Insufficient balance! User balance is less than allocated amount
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Controls */}
+                  {isAllocated && hasBalance && (
+                    <div className="bg-[#0d1117]/50 border border-[#21262d] rounded-lg p-4 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Outcome Selection */}
+                        <div>
+                          <p className="text-sm font-bold text-white mb-3">Bot Outcome</p>
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-3 p-2 bg-[#161b22] rounded cursor-pointer hover:bg-[#1a1f26] transition-all">
+                              <input
+                                type="radio"
+                                name={`outcome-${bot.id}`}
+                                value="win"
+                                checked={botOutcomes[bot.id] === 'win'}
+                                onChange={() => setBotOutcomes(prev => ({ ...prev, [bot.id]: 'win' }))}
+                                className="accent-[#26a69a]"
+                              />
+                              <span className="text-sm text-[#26a69a] font-medium">✓ WIN - Generate profit</span>
+                            </label>
+                            <label className="flex items-center gap-3 p-2 bg-[#161b22] rounded cursor-pointer hover:bg-[#1a1f26] transition-all">
+                              <input
+                                type="radio"
+                                name={`outcome-${bot.id}`}
+                                value="lose"
+                                checked={botOutcomes[bot.id] === 'lose'}
+                                onChange={() => setBotOutcomes(prev => ({ ...prev, [bot.id]: 'lose' }))}
+                                className="accent-[#ef5350]"
+                              />
+                              <span className="text-sm text-[#ef5350] font-medium">✗ LOSS - Generate loss</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Duration Selection */}
+                        <div>
+                          <p className="text-sm font-bold text-white mb-3">Run Duration</p>
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <label className="text-xs text-[#8b949e] block mb-1">Value</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={botDurations[bot.id] || '7'}
+                                onChange={(e) => setBotDurations(prev => ({ ...prev, [bot.id]: e.target.value }))}
+                                className="w-full px-3 py-2 bg-[#161b22] border border-[#21262d] rounded text-white text-sm focus:border-[#2962ff] focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-xs text-[#8b949e] block mb-1">Unit</label>
+                              <select
+                                value={(botDurations[`${bot.id}-type`] || 'days') as any}
+                                onChange={(e) => setBotDurations(prev => ({ ...prev, [`${bot.id}-type`]: e.target.value }))}
+                                className="w-full px-3 py-2 bg-[#161b22] border border-[#21262d] rounded text-white text-sm cursor-pointer focus:border-[#2962ff] focus:outline-none"
+                              >
+                                <option value="hours">Hours</option>
+                                <option value="days">Days</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Approve Button */}
+                      <button
+                        onClick={() => {
+                          const outcome = botOutcomes[bot.id] || 'win';
+                          const durationValue = botDurations[bot.id] || '7';
+                          const durationType = (botDurations[`${bot.id}-type`] || 'days') as 'hours' | 'days';
+                          approveBotActivation(bot.id, durationValue, durationType, outcome);
+                          // Reset form
+                          setBotOutcomes(prev => ({ ...prev, [bot.id]: undefined }));
+                          setBotDurations(prev => ({ ...prev, [bot.id]: '', [`${bot.id}-type`]: '' }));
+                        }}
+                        className="w-full py-3 bg-[#26a69a] hover:bg-teal-600 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="h-5 w-5" /> Approve & Activate Bot
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center py-8 text-[#8b949e]">No pending bot purchases</p>
+        )}
+      </div>
+
+      {/* Pending Signal Purchases - First Approval */}
+      <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-orange-500" /> Pending Signal Purchases (Step 1)
+        </h3>
+        {purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').length > 0 ? (
+          <div className="space-y-4">
+            {purchasedSignals.filter(s => s.status === 'PENDING_APPROVAL').map((signal) => {
+              const user = allUsers.find(u => u.id === signal.userId);
+              return (
+                <div key={signal.id} className="flex items-center justify-between p-4 bg-orange-500/5 border border-orange-500/30 rounded-lg">
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{signal.providerName}</p>
+                    <p className="text-xs text-[#8b949e]">User: {user?.email}</p>
+                    <p className="text-xs text-[#8b949e]">Win Rate: {signal.winRate}%</p>
+                    <p className="text-xs text-orange-400 mt-1">Waiting for admin purchase approval</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      approveSignalPurchase(signal.id);
+                    }}
+                    className="px-4 py-2 bg-orange-500/20 text-orange-400 rounded-lg text-sm font-bold hover:bg-orange-500/30 flex items-center gap-2"
+                  >
+                    <CheckCircle className="h-4 w-4" /> Approve Purchase
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center py-8 text-[#8b949e]">No pending signal purchases</p>
+        )}
+      </div>
+
+      {/* Signals Approved for Allocation - Waiting for Capital */}
+      <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-[#2962ff]" /> Signals Approved for Allocation (Step 2)
+        </h3>
+        {purchasedSignals.filter(s => s.status === 'APPROVED_FOR_ALLOCATION' && s.allocation === 0).length > 0 ? (
+          <div className="space-y-3">
+            {purchasedSignals.filter(s => s.status === 'APPROVED_FOR_ALLOCATION' && s.allocation === 0).map((signal) => {
+              const user = allUsers.find(u => u.id === signal.userId);
+              return (
+                <div key={signal.id} className="flex items-center justify-between p-4 bg-[#2962ff]/5 border border-[#2962ff]/30 rounded-lg">
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{signal.providerName}</p>
+                    <p className="text-xs text-[#8b949e]">User: {user?.email}</p>
+                    <p className="text-xs text-[#8b949e]">Win Rate: {signal.winRate}%</p>
+                    <p className="text-xs text-[#2962ff] mt-1">Approved - waiting for user to allocate capital in Signals page</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-[#8b949e]">User Balance</p>
+                    <p className="text-white font-bold">${(user?.balance || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center py-8 text-[#8b949e]">No signals waiting for allocation</p>
+        )}
+      </div>
+
+      {/* Signals Ready for Activation - Second Approval */}
+      <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
+        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+          <Zap className="h-5 w-5 text-yellow-500" /> Signals Ready for Activation (Step 3)
+        </h3>
+        {purchasedSignals.filter(s => s.status === 'APPROVED_FOR_ALLOCATION' && s.allocation > 0).length > 0 ? (
+          <div className="space-y-4">
+            {purchasedSignals.filter(s => s.status === 'APPROVED_FOR_ALLOCATION' && s.allocation > 0).map((signal) => {
+              const user = allUsers.find(u => u.id === signal.userId);
+              const hasBalance = (user?.balance || 0) >= signal.allocation;
+              
+              return (
+                <div key={signal.id} className={`border rounded-lg p-4 ${hasBalance ? 'bg-[#0d1117] border-[#21262d]' : 'bg-yellow-500/5 border-yellow-500/30'}`}>
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-lg font-bold text-white">{signal.providerName}</h4>
+                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                          hasBalance 
+                            ? 'bg-[#26a69a]/20 text-[#26a69a]' 
+                            : 'bg-yellow-500/20 text-yellow-500'
+                        }`}>
+                          {hasBalance ? '✓ READY' : '⚠ INSUFFICIENT BALANCE'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#8b949e] space-y-1">
+                        <p>User: <span className="text-white font-medium">{user?.email}</span></p>
+                        <p>Win Rate: <span className="text-[#2962ff] font-bold">{signal.winRate}%</span></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Allocation Status */}
+                  <div className="bg-[#0d1117]/50 border border-[#21262d] rounded-lg p-3 mb-4 space-y-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-[#8b949e] uppercase mb-1">Allocated Amount</p>
+                        <p className="text-2xl font-bold text-white">${signal.allocation.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#8b949e] uppercase mb-1">User Balance</p>
+                        <p className={`text-2xl font-bold ${hasBalance ? 'text-[#26a69a]' : 'text-[#ef5350]'}`}>
+                          ${(user?.balance || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    {!hasBalance && (
+                      <div className="bg-red-500/10 text-red-400 text-xs p-2 rounded border border-red-500/20">
+                        ❌ Insufficient balance! User balance is less than allocated amount
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Controls */}
+                  {hasBalance && (
+                    <div className="bg-[#0d1117]/50 border border-[#21262d] rounded-lg p-4 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Outcome Selection */}
+                        <div>
+                          <p className="text-sm font-bold text-white mb-3">Signal Outcome</p>
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-3 p-2 bg-[#161b22] rounded cursor-pointer hover:bg-[#1a1f26] transition-all">
+                              <input
+                                type="radio"
+                                name={`signal-outcome-${signal.id}`}
+                                value="win"
+                                checked={signalOutcomes[signal.id] === 'win'}
+                                onChange={() => setSignalOutcomes(prev => ({ ...prev, [signal.id]: 'win' }))}
+                                className="accent-[#26a69a]"
+                              />
+                              <span className="text-sm text-[#26a69a] font-medium">✓ WIN - Profitable signals</span>
+                            </label>
+                            <label className="flex items-center gap-3 p-2 bg-[#161b22] rounded cursor-pointer hover:bg-[#1a1f26] transition-all">
+                              <input
+                                type="radio"
+                                name={`signal-outcome-${signal.id}`}
+                                value="lose"
+                                checked={signalOutcomes[signal.id] === 'lose'}
+                                onChange={() => setSignalOutcomes(prev => ({ ...prev, [signal.id]: 'lose' }))}
+                                className="accent-[#ef5350]"
+                              />
+                              <span className="text-sm text-[#ef5350] font-medium">✗ LOSS - Losing signals</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Duration Selection */}
+                        <div>
+                          <p className="text-sm font-bold text-white mb-3">Subscription Duration</p>
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <label className="text-xs text-[#8b949e] block mb-1">Value</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={signalDurations[signal.id] || '7'}
+                                onChange={(e) => setSignalDurations(prev => ({ ...prev, [signal.id]: e.target.value }))}
+                                className="w-full px-3 py-2 bg-[#161b22] border border-[#21262d] rounded text-white text-sm focus:border-[#2962ff] focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-xs text-[#8b949e] block mb-1">Unit</label>
+                              <select
+                                value={signalDurationTypes[signal.id] || 'days'}
+                                onChange={(e) => setSignalDurationTypes(prev => ({ ...prev, [signal.id]: e.target.value as 'hours' | 'days' }))}
+                                className="w-full px-3 py-2 bg-[#161b22] border border-[#21262d] rounded text-white text-sm cursor-pointer focus:border-[#2962ff] focus:outline-none"
+                              >
+                                <option value="hours">Hours</option>
+                                <option value="days">Days</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Approve Button */}
+                      <button
+                        onClick={() => {
+                          const outcome = signalOutcomes[signal.id] || 'win';
+                          const duration = signalDurations[signal.id] || '7';
+                          const durationType = signalDurationTypes[signal.id] || 'days';
+                          approveSignalSubscription(signal.id, duration, durationType, outcome);
+                          // Reset form
+                          setSignalOutcomes(prev => ({ ...prev, [signal.id]: undefined }));
+                          setSignalDurations(prev => ({ ...prev, [signal.id]: '' }));
+                          setSignalDurationTypes(prev => ({ ...prev, [signal.id]: undefined }));
+                        }}
+                        className="w-full py-3 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="h-5 w-5" /> Approve & Activate Signal
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center py-8 text-[#8b949e]">No signals ready for activation</p>
         )}
       </div>
 
@@ -744,9 +1136,9 @@ export function AdminPage() {
     };
     const handleCreateCopy = (e?: React.MouseEvent) => {
       if (e) e.preventDefault();
-      if (form.userId && form.copyTrader && form.copyAlloc && form.copyDuration) {
-        adminCreateCopyTrade(form.userId, form.copyTrader, parseFloat(form.copyAlloc), form.copyDuration, 'days', 'Medium');
-        setForm(prev => ({ ...prev, copyTrader: '', copyAlloc: '', copyDuration: '7', userId: '' }));
+      if (form.userId && form.copyTrader && form.copyAlloc && form.copyDuration && form.traderReturn) {
+        adminCreateCopyTrade(form.userId, form.copyTrader, parseFloat(form.copyAlloc), form.copyDuration, 'days', 'Medium', parseFloat(form.traderReturn));
+        setForm(prev => ({ ...prev, copyTrader: '', copyAlloc: '', copyDuration: '7', traderReturn: '', userId: '' }));
       }
     };
 
@@ -868,6 +1260,13 @@ export function AdminPage() {
               placeholder="Duration (days)"
               value={form.copyDuration}
               onChange={(e) => setForm({ ...form, copyDuration: e.target.value })}
+              className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded text-white cursor-text focus:border-[#2962ff] focus:outline-none"
+            />
+            <input
+              type="number"
+              placeholder="Trader return %"
+              value={form.traderReturn}
+              onChange={(e) => setForm({ ...form, traderReturn: e.target.value })}
               className="w-full px-3 py-2 bg-[#0d1117] border border-[#21262d] rounded text-white cursor-text focus:border-[#2962ff] focus:outline-none"
             />
             <button

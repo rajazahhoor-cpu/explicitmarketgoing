@@ -12,7 +12,8 @@ import {
   Clock,
   Lock,
   X,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { PaymentModal } from '../components/PaymentModal';
 
@@ -27,6 +28,7 @@ export function BotPage() {
     allocateBotCapital,
     pauseBot,
     resumeBot,
+    terminateBot,
     user,
     botTemplates
   } = useStore();
@@ -317,17 +319,21 @@ export function BotPage() {
                         className={`text-xs font-bold px-2 py-1 rounded-full ${
                           purchase.status === 'ACTIVE'
                             ? 'bg-[#26a69a]/20 text-[#26a69a]'
+                            : purchase.status === 'APPROVED_FOR_ALLOCATION'
+                            ? 'bg-[#2962ff]/20 text-[#2962ff]'
                             : purchase.status === 'PENDING_APPROVAL'
                             ? 'bg-yellow-500/20 text-yellow-500'
                             : 'bg-[#8b949e]/20 text-[#8b949e]'
                         }`}
                       >
-                        {purchase.status === 'PENDING_APPROVAL' ? 'Pending Approval' : purchase.status}
+                        {purchase.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 
+                         purchase.status === 'APPROVED_FOR_ALLOCATION' ? 'Approved - Allocate Capital' :
+                         purchase.status}
                       </span>
                     </div>
                   </div>
 
-                  {purchase.status === 'ACTIVE' && (
+                  {(purchase.status === 'ACTIVE' || purchase.status === 'APPROVED_FOR_ALLOCATION') && (
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-[#0d1117] p-3 rounded-lg border border-[#21262d]">
@@ -344,14 +350,14 @@ export function BotPage() {
                         </div>
                       </div>
 
-                      {purchase.allocatedAmount === 0 ? (
+                      {purchase.status === 'APPROVED_FOR_ALLOCATION' && purchase.allocatedAmount === 0 ? (
                         <button
                           onClick={() => setAllocationModal({ isOpen: true, botId: purchase.id, amount: '' })}
                           className="w-full py-2 bg-[#2962ff] hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
                         >
                           <Plus className="h-4 w-4" /> Allocate Capital
                         </button>
-                      ) : (
+                      ) : purchase.status === 'ACTIVE' && purchase.allocatedAmount > 0 ? (
                         <div className="space-y-2">
                           <div className="text-xs text-[#8b949e] text-center">
                             Bot is actively trading with ${purchase.allocatedAmount.toFixed(2)}
@@ -362,8 +368,14 @@ export function BotPage() {
                           >
                             ⏸ Pause Bot
                           </button>
+                          <button
+                            onClick={() => terminateBot(purchase.id)}
+                            className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg font-bold text-sm transition-all border border-red-500/30 flex items-center justify-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" /> Terminate Bot
+                          </button>
                         </div>
-                      )}
+                      ) : null}
                     </>
                   )}
 
@@ -372,12 +384,20 @@ export function BotPage() {
                       <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-center mb-3">
                         <p className="text-yellow-500 text-sm font-bold">⏸ Bot is paused</p>
                       </div>
-                      <button
-                        onClick={() => resumeBot(purchase.id)}
-                        className="w-full py-2 bg-[#26a69a] hover:bg-teal-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
-                      >
-                        ▶ Resume Bot
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => resumeBot(purchase.id)}
+                          className="w-full py-2 bg-[#26a69a] hover:bg-teal-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                        >
+                          ▶ Resume Bot
+                        </button>
+                        <button
+                          onClick={() => terminateBot(purchase.id)}
+                          className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg font-bold text-sm transition-all border border-red-500/30 flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="h-4 w-4" /> Terminate Bot
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>

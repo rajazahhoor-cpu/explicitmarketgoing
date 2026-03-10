@@ -97,11 +97,16 @@ export type PurchasedBot = {
   allocatedAmount: number;
   totalEarned: number;
   totalLost: number;
-  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
+  status: 'PENDING_APPROVAL' | 'APPROVED_FOR_ALLOCATION' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
   purchasedAt: number;
   approvedAt?: number;
   performance: number;
   dailyReturn?: number;
+  durationValue?: string;
+  durationType?: 'hours' | 'days';
+  maxDurationMs?: number;
+  endDate?: number;
+  outcome?: 'win' | 'lose';
 };
 
 export type PurchasedSignal = {
@@ -109,6 +114,7 @@ export type PurchasedSignal = {
   userId: string;
   signalId: string;
   providerName: string;
+  allocation: number;
   cost: number;
   status: 'PENDING_APPROVAL' | 'ACTIVE' | 'EXPIRED';
   subscribedAt: number;
@@ -116,6 +122,13 @@ export type PurchasedSignal = {
   tradesFollowed: number;
   winRate: number;
   earnings: number;
+  totalEarningsRealized?: number;
+  durationValue?: string;
+  durationType?: 'hours' | 'days';
+  endDate?: number;
+  outcome?: 'win' | 'lose';
+  activeTrades?: any[];
+  startedAt?: number;
 };
 
 export type CopyTrade = {

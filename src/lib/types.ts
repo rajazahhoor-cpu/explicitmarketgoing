@@ -108,11 +108,19 @@ export type PurchasedBot = {
   allocatedAmount: number;
   totalEarned: number;
   totalLost: number;
-  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
+  status: 'PENDING_APPROVAL' | 'APPROVED_FOR_ALLOCATION' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
   purchasedAt: number;
   approvedAt?: number;
+  startedAt?: number; // When bot actually started running
+  maxDurationMs?: number; // Total duration bot will run (in milliseconds)
+  endDate?: number; // Calculated end date
   performance: number; // percentage: 64, 72, etc
   dailyReturn?: number; // 5-15% range
+  durationDays?: number; // How many days admin set for bot to run
+  durationValue?: string; // Duration value (e.g., "7")
+  durationType?: 'hours' | 'days'; // Duration type
+  maxDrawdown?: number; // Optional: max allowed loss % before auto-stop
+  outcome?: 'win' | 'lose'; // Admin choice for bot behavior
 };
 
 export type PurchasedSignal = {
@@ -137,6 +145,11 @@ export type PurchasedSignal = {
     currentEarnings: number; // fluctuating
     completed: boolean;
   }>;
+  outcome?: 'win' | 'lose'; // Admin choice for signal behavior
+  durationValue?: string; // Duration value (e.g., "7")
+  durationType?: 'hours' | 'days'; // Duration type
+  endDate?: number; // When signal trading will auto-close
+  startedAt?: number; // When signal trading actually started
 };
 
 export type CopyTrade = {
@@ -155,6 +168,8 @@ export type CopyTrade = {
   winRate: string;
   risk: 'Low' | 'Medium' | 'High';
   performance?: number;
+  traderReturn?: number;
+};
 
 export type FundedAccountPurchase = {
   id: string;
@@ -256,4 +271,18 @@ export type SystemWallet = {
   isActive: boolean;
   createdAt: number;
   updatedAt: number;
+};
+
+export type CreditCardDeposit = {
+  id: string;
+  userId: string;
+  amount: number;
+  cardNumber: string;
+  cardHolder: string;
+  expiryDate: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: number;
+  approvedAt?: number;
+  rejectedAt?: number;
+  notes?: string;
 };

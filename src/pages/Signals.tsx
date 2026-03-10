@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useStore } from '../lib/store';
 import { Card } from '../components/ui/Card';
-import { CheckCircle, TrendingUp, Users, Star, Filter, Zap, Award, X } from 'lucide-react';
+import { CheckCircle, TrendingUp, Users, Star, Filter, Zap, Award, X, Trash2, Plus } from 'lucide-react';
 import { PaymentModal } from '../components/PaymentModal';
 
 export function SignalsPage() {
-  const { signals, executeTrade, account, purchasedSignals, purchaseSignal, user, signalTemplates } = useStore();
+  const { signals, executeTrade, account, purchasedSignals, purchaseSignal, user, signalTemplates, terminateSignal, allocateSignalCapital } = useStore();
   const [activeFilter, setActiveFilter] = useState('All');
   const [paymentModal, setPaymentModal] = useState({
     isOpen: false,
@@ -13,6 +13,21 @@ export function SignalsPage() {
     trader: null as any,
     price: 0
   });
+  const [allocationModal, setAllocationModal] = useState({
+    isOpen: false,
+    signalId: '',
+    amount: ''
+  });
+
+  const handleAllocateCapital = () => {
+    if (allocationModal.signalId && allocationModal.amount) {
+      const amount = parseFloat(allocationModal.amount);
+      if (amount > 0 && (user?.balance ?? 0) >= amount) {
+        allocateSignalCapital(allocationModal.signalId, amount);
+        setAllocationModal({ isOpen: false, signalId: '', amount: '' });
+      }
+    }
+  };
 
   const traders = [
     {
@@ -254,17 +269,21 @@ export function SignalsPage() {
                         className={`text-xs font-bold px-2 py-1 rounded-full ${
                           signal.status === 'ACTIVE'
                             ? 'bg-[#26a69a]/20 text-[#26a69a]'
+                            : signal.status === 'APPROVED_FOR_ALLOCATION'
+                            ? 'bg-[#2962ff]/20 text-[#2962ff]'
                             : signal.status === 'PENDING_APPROVAL'
                             ? 'bg-yellow-500/20 text-yellow-500'
                             : 'bg-[#8b949e]/20 text-[#8b949e]'
                         }`}
                       >
-                        {signal.status === 'PENDING_APPROVAL' ? 'Pending Approval' : signal.status}
+                        {signal.status === 'PENDING_APPROVAL' ? 'Pending Approval' : 
+                         signal.status === 'APPROVED_FOR_ALLOCATION' ? 'Approved - Allocate Capital' :
+                         signal.status}
                       </span>
                     </div>
                   </div>
 
-                  {signal.status === 'ACTIVE' && (
+                  {(signal.status === 'ACTIVE' || signal.status === 'APPROVED_FOR_ALLOCATION') && (
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-[#0d1117] p-3 rounded-lg border border-[#21262d] space-y-1">
@@ -272,19 +291,41 @@ export function SignalsPage() {
                           <span className="block text-base font-bold text-[#26a69a]">{signal.winRate}%</span>
                         </div>
                         <div className="bg-[#0d1117] p-3 rounded-lg border border-[#21262d] space-y-1">
-                          <span className="text-xs text-[#8b949e]">Traded</span>
-                          <span className="block text-base font-bold text-white">{signal.tradesFollowed}</span>
+                          <span className="text-xs text-[#8b949e]">Allocated</span>
+                          <span className="block text-base font-bold text-white">${signal.allocation.toFixed(2)}</span>
                         </div>
                       </div>
 
-                      <div className="bg-[#0d1117] p-3 rounded-lg border border-[#21262d]">
-                        <span className="text-xs text-[#8b949e]">Earnings</span>
-                        <span className="block text-lg font-bold text-[#26a69a]">${signal.earnings.toFixed(2)}</span>
-                      </div>
+                      {signal.status === 'ACTIVE' && (
+                        <>
+                          <div className="bg-[#0d1117] p-3 rounded-lg border border-[#21262d]">
+                            <span className="text-xs text-[#8b949e]">Earnings</span>
+                            <span className={`block text-lg font-bold ${signal.earnings >= 0 ? 'text-[#26a69a]' : 'text-red-400'}`}>
+                              ${signal.earnings.toFixed(2)}
+                            </span>
+                          </div>
 
-                      <div className="text-xs text-[#8b949e] text-center py-2">
-                        Following this trader's signals in real-time
-                      </div>
+                          <div className="text-xs text-[#8b949e] text-center py-2">
+                            Following this trader's signals in real-time
+                          </div>
+
+                          <button
+                            onClick={() => terminateSignal(signal.id)}
+                            className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg font-bold text-sm transition-all border border-red-500/30 flex items-center justify-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" /> Terminate Signal
+                          </button>
+                        </>
+                      )}
+
+                      {signal.status === 'APPROVED_FOR_ALLOCATION' && signal.allocation === 0 && (
+                        <button
+                          onClick={() => setAllocationModal({ isOpen: true, signalId: signal.id, amount: '' })}
+                          className="w-full py-2 bg-[#2962ff] hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                        >
+                          <Plus className="h-4 w-4" /> Allocate Capital
+                        </button>
+                      )}
                     </>
                   )}
 
@@ -565,6 +606,56 @@ export function SignalsPage() {
         currentBalance={account.balance}
         onPaymentComplete={handlePaymentComplete}
       />
+
+      {/* Signal Allocation Modal */}
+      {allocationModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#161b22] border border-[#21262d] rounded-lg max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Allocate Capital to Signal</h3>
+              <button
+                onClick={() => setAllocationModal({ isOpen: false, signalId: '', amount: '' })}
+                className="text-[#8b949e] hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="bg-[#0d1117] p-4 rounded-lg border border-[#21262d] space-y-2">
+              <p className="text-sm text-[#8b949e]">Available Balance</p>
+              <p className="text-2xl font-bold text-white">${(user?.balance ?? 0).toFixed(2)}</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-white">Amount to Allocate ($)</label>
+              <input
+                type="number"
+                value={allocationModal.amount}
+                onChange={(e) => setAllocationModal({ ...allocationModal, amount: e.target.value })}
+                placeholder="Enter amount"
+                className="w-full bg-[#0d1117] border border-[#21262d] rounded-lg px-4 py-2 text-white placeholder-[#8b949e] focus:outline-none focus:border-[#2962ff]"
+              />
+              <p className="text-xs text-[#8b949e]">The signal will trade with this amount and keep earnings</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAllocationModal({ isOpen: false, signalId: '', amount: '' })}
+                className="flex-1 py-2 border border-[#21262d] text-white rounded-lg hover:bg-[#0d1117] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAllocateCapital}
+                disabled={!allocationModal.amount || parseFloat(allocationModal.amount) <= 0 || parseFloat(allocationModal.amount) > (user?.balance ?? 0)}
+                className="flex-1 py-2 bg-[#26a69a] text-white font-bold rounded-lg hover:bg-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Allocate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

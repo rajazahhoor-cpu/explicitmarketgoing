@@ -38,13 +38,13 @@ export function SettingsPage() {
       [key]: !prev[key]
     }));
   };
-  const handleResetDemo = () => {
+  const handleResetLive = () => {
     if (
     confirm(
-      'Are you sure you want to reset your demo account balance to $10,000? All trade history will be lost.'
+      'Are you sure you want to reset your live account balance to $10,000? All trade history will be lost.'
     ))
     {
-      alert('Demo account reset successfully');
+      alert('Live account reset successfully');
       // In a real app, this would call a store function
     }
   };
@@ -86,7 +86,7 @@ export function SettingsPage() {
                 </label>
                 <div className="flex h-10 items-center">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/30 text-green-400 border border-green-900">
-                    DEMO ACCOUNT
+                    LIVE ACCOUNT
                   </span>
                 </div>
               </div>
@@ -223,13 +223,13 @@ export function SettingsPage() {
           <div className="flex items-center justify-between p-4 rounded-lg border border-red-900/30 bg-red-900/10">
             <div>
               <p className="text-sm font-medium text-white">
-                Reset Demo Account
+                Reset Live Account
               </p>
               <p className="text-xs text-gray-500">
                 Restore balance to $10,000 and clear trade history
               </p>
             </div>
-            <Button variant="danger" size="sm" onClick={handleResetDemo}>
+            <Button variant="danger" size="sm" onClick={handleResetLive}>
               Reset Balance
             </Button>
           </div>

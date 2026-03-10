@@ -24,7 +24,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const botEarnings = purchasedBots.reduce((sum, b) => sum + b.totalEarned, 0);
   const signalEarnings = purchasedSignals.reduce((sum, s) => sum + s.earnings, 0);
   const copyTradingEarnings = purchasedCopyTrades
-    .filter(ct => ct.status === 'CLOSED')
+    .filter(ct => ct.status === 'ACTIVE' || ct.status === 'CLOSED')
     .reduce((sum, ct) => sum + ct.profit, 0);
   // funded account stats for this user
   const userFunded = purchasedFundedAccounts.filter(f => f.userId === user?.id);
