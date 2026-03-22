@@ -248,7 +248,68 @@ export function AdminPage() {
     <div className="space-y-6">
       <div className="bg-gray-100 dark:bg-[#161b22] border border-gray-300 dark:border-[#21262d] rounded-lg p-6">
         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">All Users</h3>
-        <div className="overflow-x-auto">
+        
+        {/* Mobile: Card Layout */}
+        <div className="md:hidden space-y-3">
+          {allUsers.map((user) => (
+            <div
+              key={user.id}
+              className="bg-white dark:bg-[#0d1117] border border-gray-300 dark:border-[#21262d] rounded-lg p-4 space-y-3"
+            >
+              <div
+                onClick={() => setSelectedUserId(selectedUserId === user.id ? null : user.id)}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900 dark:text-white">{user.name}</p>
+                    <p className="text-xs text-gray-600 dark:text-[#8b949e]">{user.email}</p>
+                  </div>
+                  <span className="ml-2">
+                    {user.isVerified ? (
+                      <span className="px-2 py-1 bg-[#26a69a]/20 text-[#26a69a] rounded text-xs font-medium">Active</span>
+                    ) : (
+                      <span className="px-2 py-1 bg-[#ef5350]/20 text-[#ef5350] rounded text-xs font-medium">Locked</span>
+                    )}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600 dark:text-[#8b949e] space-y-1">
+                  <p><strong>Balance:</strong> ${(user.balance || 0).toLocaleString()}</p>
+                  <p><strong>Country:</strong> {user.country}</p>
+                  {user.phoneNumber && <p><strong>Phone:</strong> {user.phoneNumber}</p>}
+                </div>
+                <p className="text-xs text-[#2962ff] font-semibold mt-2">👉 Tap to view details & manage</p>
+              </div>
+              <div className="flex gap-2 pt-2 border-t border-gray-300 dark:border-[#21262d]">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedUserId(selectedUserId === user.id ? null : user.id);
+                  }}
+                  className="flex-1 px-3 py-2 bg-[#2962ff] hover:bg-[#1e47a0] text-white rounded text-xs transition-colors font-medium"
+                >
+                  {selectedUserId === user.id ? 'Close' : 'View Details'}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleUserLock(user.id);
+                  }}
+                  className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
+                    user.isVerified
+                      ? 'bg-[#ef5350]/20 text-[#ef5350] hover:bg-[#ef5350]/30'
+                      : 'bg-[#26a69a]/20 text-[#26a69a] hover:bg-[#26a69a]/30'
+                  }`}
+                >
+                  {user.isVerified ? 'Lock' : 'Unlock'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop: Table Layout */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-300 dark:border-[#21262d]">
@@ -263,7 +324,11 @@ export function AdminPage() {
             </thead>
             <tbody>
               {allUsers.map((user) => (
-                <tr key={user.id} className="border-b border-gray-300 dark:border-[#21262d] hover:bg-gray-50 hover:dark:bg-[#0d1117]/50">
+                <tr
+                  key={user.id}
+                  onClick={() => setSelectedUserId(selectedUserId === user.id ? null : user.id)}
+                  className="border-b border-gray-300 dark:border-[#21262d] hover:bg-gray-50 hover:dark:bg-[#0d1117]/50 cursor-pointer transition-colors"
+                >
                   <td className="py-3 px-4 text-gray-900 dark:text-white">{user.email}</td>
                   <td className="py-3 px-4 text-gray-900 dark:text-white">{user.name}</td>
                   <td className="py-3 px-4 text-gray-900 dark:text-white">{user.phoneNumber || 'N/A'}</td>
@@ -276,7 +341,7 @@ export function AdminPage() {
                       <span className="px-2 py-1 bg-[#ef5350]/20 text-[#ef5350] rounded text-xs font-medium">Locked</span>
                     )}
                   </td>
-                  <td className="py-3 px-4 space-x-2 flex">
+                  <td className="py-3 px-4 space-x-2 flex" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setSelectedUserId(selectedUserId === user.id ? null : user.id)}
                       className="px-3 py-1 bg-[#2962ff] hover:bg-[#1e47a0] text-white rounded text-xs transition-colors"
