@@ -205,9 +205,9 @@ interface StoreContextType {
   editCopyTradeTemplate: (copyTradeId: string, updates: Partial<CopyTradeTemplate>) => void;
   deleteCopyTradeTemplate: (copyTradeId: string) => void;
   // Wallet Methods
-  addWallet: (userId: string, address: string, label: string, type: 'DEPOSIT' | 'PURCHASE', currency: string, network?: string) => void;
-  editWallet: (walletId: string, updates: Partial<Wallet>) => void;
-  removeWallet: (walletId: string) => void;
+  addWallet: (userId: string, address: string, label: string, type: 'DEPOSIT' | 'PURCHASE', currency: string, network?: string) => Promise<void>;
+  editWallet: (walletId: string, updates: Partial<Wallet>) => Promise<void>;
+  removeWallet: (walletId: string) => Promise<void>;
   // Bank Account Methods
   addBankAccount: (accountName: string, accountNumber: string, bankName: string, routingNumber: string, accountType: 'CHECKING' | 'SAVINGS', currency: string, country: string, type: 'DEPOSIT' | 'WITHDRAWAL', swiftCode?: string, iban?: string) => void;
   editBankAccount: (accountId: string, updates: Partial<BankAccount>) => void;
@@ -1332,6 +1332,21 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
                 .eq('user_id', u.id)
                 .single();
               
+              // Load wallet addresses for the user
+              const { data: walletData, error: walletError } = await supabase
+                .from('user_wallet_addresses')
+                .select('*')
+                .eq('user_id', u.id)
+                .order('created_at', { ascending: false });
+              
+              if (walletError) {
+                console.error(`🔴 [ADMIN-LOAD] Error loading wallets for user ${u.email}:`, walletError.message);
+              } else if (walletData && walletData.length > 0) {
+                console.log(`✅ [ADMIN-LOAD] Loaded ${walletData.length} wallets for user ${u.email}`);
+              } else {
+                console.log(`ℹ️ [ADMIN-LOAD] No wallets for user ${u.email}`);
+              }
+              
               return {
                 id: u.id,
                 email: u.email,
@@ -1358,15 +1373,25 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
                   zipCode: kycData.zip_code,
                   address: kycData.address,
                   documentType: kycData.document_type
-                } : undefined
+                } : undefined,
+                wallets: walletData?.map((w: any) => ({
+                  id: w.id,
+                  userId: w.user_id,
+                  address: w.address,
+                  label: w.label,
+                  type: w.type,
+                  currency: w.currency,
+                  network: w.network,
+                  createdAt: new Date(w.created_at).getTime()
+                })) || []
               };
             })
           );
           
           setAllUsers(convertedUsers);
-          console.log('✅ AllUsers state updated with', convertedUsers.length, 'users with actual balances');
+          console.log('✅ AllUsers state updated with', convertedUsers.length, 'users with actual balances and wallets');
           convertedUsers.forEach(u => {
-            console.log(`  📊 ${u.email}: $${u.balance}`);
+            console.log(`  📊 ${u.email}: $${u.balance} | 💼 ${u.wallets?.length || 0} wallets`);
           });
         } else {
           console.log('ℹ️ No users found');
@@ -1800,6 +1825,38 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
           setUser(prev => prev ? { ...prev, kycData: convertedKycData } : null);
         } else {
           console.log('ℹ️ No KYC data found for user');
+        }
+
+        // 9. Load user wallet addresses
+        console.log('🟡 [LOAD] Loading user wallet addresses for userId:', userId);
+        const { data: walletData, error: walletError } = await supabase
+          .from('user_wallet_addresses')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (walletError) {
+          console.error('🔴 [LOAD] Error querying wallet addresses:', walletError.message);
+          console.log('ℹ️ No wallet addresses found or error:', walletError.message);
+          setWallets([]);
+        } else if (walletData && walletData.length > 0) {
+          console.log('✅ [LOAD] Loaded', walletData.length, 'wallet addresses for user');
+          console.log('🟡 [LOAD] Wallet data from Supabase:', walletData);
+          const convertedWallets: Wallet[] = walletData.map((w: any) => ({
+            id: w.id,
+            userId: w.user_id,
+            address: w.address,
+            label: w.label,
+            type: w.type,
+            currency: w.currency,
+            network: w.network,
+            createdAt: new Date(w.created_at).getTime()
+          }));
+          console.log('✅ [LOAD] Converted wallets:', convertedWallets);
+          setWallets(convertedWallets);
+        } else {
+          console.log('ℹ️ No wallet addresses found for user');
+          setWallets([]);
         }
       }
 
@@ -3619,35 +3676,152 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
   };
 
   // Wallet Methods
-  const addWallet = (userId: string, address: string, label: string, type: 'DEPOSIT' | 'PURCHASE', currency: string, network?: string) => {
-    const newWallet: Wallet = {
-      id: generateId(),
+  const addWallet = async (userId: string, address: string, label: string, type: 'DEPOSIT' | 'PURCHASE', currency: string, network?: string) => {
+    console.log('🟢 [STORE-ADDWALLET] Function called with:', {
       userId,
       address,
       label,
       type,
       currency,
-      network,
-      createdAt: Date.now()
-    };
-    setWallets((prev) => [...prev, newWallet]);
-    alert('✅ Wallet added successfully');
+      network
+    });
+
+    try {
+      console.log('🟡 [STORE-ADDWALLET] Building insert payload...');
+      const insertPayload = {
+        user_id: userId,
+        address,
+        label,
+        type,
+        currency,
+        network: network || null,
+        is_active: true
+      };
+      console.log('🟡 [STORE-ADDWALLET] Insert payload:', insertPayload);
+
+      // Insert into Supabase first
+      console.log('🟡 [STORE-ADDWALLET] Calling Supabase insert...');
+      const { data: insertedWallet, error: insertError } = await supabase
+        .from('user_wallet_addresses')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      console.log('🟡 [STORE-ADDWALLET] Supabase response:');
+      console.log('  - Data:', insertedWallet);
+      console.log('  - Error:', insertError);
+
+      if (insertError) {
+        console.error('🔴 [STORE-ADDWALLET] Error adding wallet to Supabase:', insertError);
+        console.error('🔴 [STORE-ADDWALLET] Error code:', insertError.code);
+        console.error('🔴 [STORE-ADDWALLET] Error message:', insertError.message);
+        console.error('🔴 [STORE-ADDWALLET] Full error:', JSON.stringify(insertError, null, 2));
+        alert(`❌ Failed to add wallet: ${insertError.message}`);
+        return;
+      }
+
+      if (!insertedWallet) {
+        console.error('🔴 [STORE-ADDWALLET] No data returned from Supabase insert!');
+        alert('Failed to add wallet: No data returned');
+        return;
+      }
+
+      console.log('✅ [STORE-ADDWALLET] Supabase insert successful, wallet id:', insertedWallet.id);
+
+      // Update local state after Supabase success
+      console.log('🟡 [STORE-ADDWALLET] Converting Supabase data to local format...');
+      const newWallet: Wallet = {
+        id: insertedWallet.id,
+        userId: insertedWallet.user_id,
+        address: insertedWallet.address,
+        label: insertedWallet.label,
+        type: insertedWallet.type,
+        currency: insertedWallet.currency,
+        network: insertedWallet.network,
+        createdAt: new Date(insertedWallet.created_at).getTime()
+      };
+      console.log('🟡 [STORE-ADDWALLET] New wallet object:', newWallet);
+
+      console.log('🟡 [STORE-ADDWALLET] Updating local wallets state...');
+      setWallets((prev) => {
+        console.log('🟡 [STORE-ADDWALLET] Previous wallets count:', prev.length);
+        const updated = [...prev, newWallet];
+        console.log('🟡 [STORE-ADDWALLET] Updated wallets count:', updated.length);
+        return updated;
+      });
+
+      console.log(`✅ [STORE-ADDWALLET] Wallet successfully added: ${address}`);
+      alert('✅ Wallet added successfully');
+      return { success: true, walletId: insertedWallet.id };
+    } catch (err: any) {
+      console.error('🔴 [STORE-ADDWALLET] Catch block - Error:', err);
+      console.error('🔴 [STORE-ADDWALLET] Error message:', err.message);
+      console.error('🔴 [STORE-ADDWALLET] Error stack:', err.stack);
+      alert(`❌ Failed to add wallet: ${err.message}`);
+      return { success: false, error: err.message };
+    }
   };
 
-  const editWallet = (walletId: string, updates: Partial<Wallet>) => {
-    setWallets((prev) =>
-      prev.map((wallet) =>
-        wallet.id === walletId
-          ? { ...wallet, ...updates }
-          : wallet
-      )
-    );
-    alert('✅ Wallet updated successfully');
+  const editWallet = async (walletId: string, updates: Partial<Wallet>) => {
+    try {
+      // Update Supabase first
+      const updateData: any = {};
+      if (updates.address) updateData.address = updates.address;
+      if (updates.label) updateData.label = updates.label;
+      if (updates.type) updateData.type = updates.type;
+      if (updates.currency) updateData.currency = updates.currency;
+      if (updates.network !== undefined) updateData.network = updates.network;
+      updateData.updated_at = new Date().toISOString();
+
+      const { error: updateError } = await supabase
+        .from('user_wallet_addresses')
+        .update(updateData)
+        .eq('id', walletId);
+
+      if (updateError) {
+        console.error('❌ Error updating wallet in Supabase:', updateError.message);
+        alert('Failed to update wallet. Please try again.');
+        return;
+      }
+
+      // Update local state after Supabase success
+      setWallets((prev) =>
+        prev.map((wallet) =>
+          wallet.id === walletId
+            ? { ...wallet, ...updates }
+            : wallet
+        )
+      );
+      console.log(`✅ Wallet updated in Supabase: ${walletId}`);
+      alert('✅ Wallet updated successfully');
+    } catch (err: any) {
+      console.error('❌ Error updating wallet:', err.message);
+      alert('Failed to update wallet');
+    }
   };
 
-  const removeWallet = (walletId: string) => {
-    setWallets((prev) => prev.filter((w) => w.id !== walletId));
-    alert('✅ Wallet removed');
+  const removeWallet = async (walletId: string) => {
+    try {
+      // Delete from Supabase first
+      const { error: deleteError } = await supabase
+        .from('user_wallet_addresses')
+        .delete()
+        .eq('id', walletId);
+
+      if (deleteError) {
+        console.error('❌ Error deleting wallet from Supabase:', deleteError.message);
+        alert('Failed to delete wallet. Please try again.');
+        return;
+      }
+
+      // Update local state after Supabase success
+      setWallets((prev) => prev.filter((w) => w.id !== walletId));
+      console.log(`✅ Wallet deleted from Supabase: ${walletId}`);
+      alert('✅ Wallet removed');
+    } catch (err: any) {
+      console.error('❌ Error deleting wallet:', err.message);
+      alert('Failed to delete wallet');
+    }
   };
 
   // Bank Account Methods

@@ -27,6 +27,8 @@ export type User = {
     documentBackName?: string;
     selfieName?: string;
   };
+  // Wallet addresses for deposits/purchases
+  wallets?: Wallet[];
   // Referral related fields
   referralCode?: string;
   referredBy?: string; // User ID who referred this user

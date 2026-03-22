@@ -6,9 +6,9 @@ interface WalletBankManagementTabProps {
   wallets: Wallet[];
   bankAccounts: BankAccount[];
   allUsers: any[];
-  addWallet: (userId: string, address: string, label: string, type: 'DEPOSIT' | 'PURCHASE', currency: string, network?: string) => void;
-  editWallet: (walletId: string, updates: Partial<Wallet>) => void;
-  removeWallet: (walletId: string) => void;
+  addWallet: (userId: string, address: string, label: string, type: 'DEPOSIT' | 'PURCHASE', currency: string, network?: string) => Promise<void>;
+  editWallet: (walletId: string, updates: Partial<Wallet>) => Promise<void>;
+  removeWallet: (walletId: string) => Promise<void>;
   addBankAccount: (accountName: string, accountNumber: string, bankName: string, routingNumber: string, accountType: 'CHECKING' | 'SAVINGS', currency: string, country: string, type: 'DEPOSIT' | 'WITHDRAWAL', swiftCode?: string, iban?: string) => void;
   editBankAccount: (accountId: string, updates: Partial<BankAccount>) => void;
   removeBankAccount: (accountId: string) => void;
@@ -135,31 +135,74 @@ export function WalletBankManagementTab({
     }));
   };
 
-  const handleAddWallet = (e: React.MouseEvent) => {
+  const handleAddWallet = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (walletForm.userId && walletForm.address && walletForm.label && walletForm.currency) {
-      if (editingWalletId) {
-        editWallet(editingWalletId, {
-          userId: walletForm.userId,
-          address: walletForm.address,
-          label: walletForm.label,
-          type: walletForm.type,
-          currency: walletForm.currency,
-          network: walletForm.network || undefined
-        });
-        setEditingWalletId(null);
-      } else {
-        addWallet(
-          walletForm.userId,
-          walletForm.address,
-          walletForm.label,
-          walletForm.type,
-          walletForm.currency,
-          walletForm.network || undefined
-        );
-      }
-      resetWalletForm();
+    console.log('🟢 [WALLET] handleAddWallet clicked');
+    console.log('🟢 [WALLET] Form data:', {
+      userId: walletForm.userId,
+      address: walletForm.address,
+      label: walletForm.label,
+      type: walletForm.type,
+      currency: walletForm.currency,
+      network: walletForm.network
+    });
+
+    if (!walletForm.userId) {
+      console.error('🔴 [WALLET] Missing userId!');
+      alert('Please select a user');
+      return;
     }
+    if (!walletForm.address) {
+      console.error('🔴 [WALLET] Missing address!');
+      alert('Please enter an address');
+      return;
+    }
+    if (!walletForm.label) {
+      console.error('🔴 [WALLET] Missing label!');
+      alert('Please enter a label');
+      return;
+    }
+    if (!walletForm.currency) {
+      console.error('🔴 [WALLET] Missing currency!');
+      alert('Please select a currency');
+      return;
+    }
+
+    console.log('✅ [WALLET] All validations passed, proceeding...');
+
+    if (editingWalletId) {
+      console.log('🟡 [WALLET] EDIT MODE - walletId:', editingWalletId);
+      await editWallet(editingWalletId, {
+        userId: walletForm.userId,
+        address: walletForm.address,
+        label: walletForm.label,
+        type: walletForm.type,
+        currency: walletForm.currency,
+        network: walletForm.network || undefined
+      });
+      setEditingWalletId(null);
+      console.log('✅ [WALLET] Edit completed');
+    } else {
+      console.log('🟢 [WALLET] ADD MODE - calling addWallet with:', {
+        userId: walletForm.userId,
+        address: walletForm.address,
+        label: walletForm.label,
+        type: walletForm.type,
+        currency: walletForm.currency,
+        network: walletForm.network
+      });
+      const result = await addWallet(
+        walletForm.userId,
+        walletForm.address,
+        walletForm.label,
+        walletForm.type,
+        walletForm.currency,
+        walletForm.network || undefined
+      );
+      console.log('✅ [WALLET] addWallet returned:', result);
+    }
+    resetWalletForm();
+    console.log('✅ [WALLET] Form reset complete');
   };
 
   const resetWalletForm = () => {
@@ -613,9 +656,9 @@ export function WalletBankManagementTab({
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm('Are you sure you want to delete this wallet?')) {
-                            removeWallet(wallet.id);
+                            await removeWallet(wallet.id);
                           }
                         }}
                         className="p-2 bg-[#ef5350]/20 text-[#ef5350] hover:bg-[#ef5350]/30 rounded-lg transition-colors"

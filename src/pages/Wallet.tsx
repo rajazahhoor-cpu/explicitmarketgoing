@@ -23,6 +23,20 @@ import {
 export function WalletPage() {
   const { account, deposit, withdraw, transactions, user, getUserTransactions, systemWallets, bankAccounts, submitCreditCardDeposit } = useStore();
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'history' | 'overview'>('overview');
+
+  // Debug user wallets on page load
+  React.useEffect(() => {
+    console.log('🟡 [WALLET-PAGE] User wallets:', user?.wallets);
+    console.log('🟡 [WALLET-PAGE] Full user object:', user);
+    if (user?.wallets && user.wallets.length > 0) {
+      console.log('✅ [WALLET-PAGE] Found', user.wallets.length, 'wallet addresses:');
+      user.wallets.forEach((w: any) => {
+        console.log(`  - ${w.label} (${w.type}): ${w.address} [${w.currency} - ${w.network || 'N/A'}]`);
+      });
+    } else {
+      console.log('ℹ️ [WALLET-PAGE] No wallet addresses found for user');
+    }
+  }, [user]);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('crypto');
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
@@ -421,6 +435,54 @@ export function WalletPage() {
       {activeTab === 'deposit' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl">
           <div className="lg:col-span-2 space-y-6">
+            {/* My Wallet Addresses Section - Admin Assigned */}
+            {user?.wallets && user.wallets.length > 0 && (
+              <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-[#26a69a]" />
+                  My Deposit Addresses
+                </h3>
+                <div className="space-y-3">
+                  {user.wallets
+                    .filter((w: any) => w.type === 'DEPOSIT')
+                    .map((wallet: any) => (
+                      <div key={wallet.id} className="bg-[#0d1117] border border-[#21262d] rounded-lg p-4 hover:border-[#26a69a] transition">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-white text-sm mb-1">{wallet.label}</h4>
+                            <p className="text-xs text-[#8b949e] mb-2">
+                              {wallet.currency} {wallet.network && `• ${wallet.network}`}
+                            </p>
+                            <p className="text-white font-mono text-xs bg-[#0d1117] p-2 rounded border border-[#21262d] break-all">
+                              {wallet.address}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(wallet.address);
+                              console.log('✅ [WALLET-PAGE] Copied address:', wallet.address);
+                              alert('✅ Address copied to clipboard');
+                            }}
+                            className="ml-2 p-2 bg-[#26a69a]/20 text-[#26a69a] hover:bg-[#26a69a]/30 rounded transition"
+                            title="Copy address"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {user?.wallets && user.wallets.length === 0 && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6">
+                <p className="text-blue-400 text-sm">
+                  📋 No wallet addresses assigned yet. Please contact support to get your deposit addresses configured.
+                </p>
+              </div>
+            )}
+
             {/* Progress Indicator */}
             {step < 3 && (
               <div className="flex items-center justify-between">
