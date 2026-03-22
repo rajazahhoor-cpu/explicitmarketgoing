@@ -14,10 +14,10 @@ export function FundedAccountsPage() {
     setPaymentModal({ isOpen: false, plan: null });
   }, []);
 
-  const handlePaymentDone = useCallback(() => {
+  const handlePaymentDone = useCallback(async () => {
     if (paymentModal.plan) {
       const plan = paymentModal.plan;
-      purchaseFundedAccount(plan.id, plan.name, plan.capital, plan.price, plan.profitTarget, plan.maxDrawdown);
+      await purchaseFundedAccount(plan.id, plan.name, plan.capital, plan.price, plan.profitTarget, plan.maxDrawdown);
     }
     handleClosePayment();
   }, [paymentModal.plan, purchaseFundedAccount, handleClosePayment]);
@@ -128,12 +128,11 @@ export function FundedAccountsPage() {
     }
   ];
 
-  const handleUpgrade = (plan: any) => {
+  const handleUpgrade = async (plan: any) => {
     if (plan.price === 0) {
       // Free plan auto-approval and immediate purchase
-      purchaseFundedAccount(plan.id, plan.name, plan.capital, plan.price, plan.profitTarget, plan.maxDrawdown);
+      await purchaseFundedAccount(plan.id, plan.name, plan.capital, plan.price, plan.profitTarget, plan.maxDrawdown);
       setPaymentModal({ isOpen: false, plan: null });
-      alert('✅ Free funded account request submitted');
     } else {
       setPaymentModal({
         isOpen: true,

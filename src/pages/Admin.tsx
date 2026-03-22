@@ -1139,25 +1139,32 @@ export function AdminPage() {
                   <td className="py-3 px-4 text-white">{acc.planName}</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      acc.status === 'APPROVED' ? 'bg-[#26a69a]/20 text-[#26a69a]' :
+                      acc.status === 'ACTIVE' || acc.status === 'APPROVED' ? 'bg-[#26a69a]/20 text-[#26a69a]' :
                       acc.status === 'REJECTED' ? 'bg-[#ef5350]/20 text-[#ef5350]' :
                       'bg-yellow-500/20 text-yellow-500'
                     }`}>
                       {acc.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-[#8b949e]">{new Date(acc.createdAt).toLocaleDateString()}</td>
+                  <td className="py-3 px-4 text-[#8b949e]">{new Date(acc.purchasedAt).toLocaleDateString()}</td>
                   <td className="py-3 px-4 space-x-2 flex">
                     {acc.status === 'PENDING_APPROVAL' && (
                       <>
                         <button
-                          onClick={() => approveFundedAccount(acc.id)}
+                          onClick={async () => {
+                            console.log('🔵 Approving funded account:', acc.id);
+                            await approveFundedAccount(acc.id);
+                            console.log('✅ Approval complete for:', acc.id);
+                          }}
                           className="px-3 py-1 bg-[#26a69a]/20 text-[#26a69a] rounded text-xs hover:bg-[#26a69a]/30"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => rejectFundedAccount(acc.id)}
+                          onClick={() => {
+                            console.log('🔴 Rejecting funded account:', acc.id);
+                            rejectFundedAccount(acc.id);
+                          }}
                           className="px-3 py-1 bg-[#ef5350]/20 text-[#ef5350] rounded text-xs hover:bg-[#ef5350]/30"
                         >
                           Reject

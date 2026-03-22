@@ -189,8 +189,8 @@ interface StoreContextType {
   stopCopyTrading: (copyTradeId: string) => void;
   closeCopyTrade: (copyTradeId: string, profit: number) => void;
   // Funded Account Methods
-  purchaseFundedAccount: (planId: string, planName: string, capital: number, price: number, profitTarget: number, maxDrawdown: number) => void;
-  approveFundedAccount: (accountId: string) => void;
+  purchaseFundedAccount: (planId: string, planName: string, capital: number, price: number, profitTarget: number, maxDrawdown: number) => Promise<void>;
+  approveFundedAccount: (accountId: string) => Promise<void>;
   rejectFundedAccount: (accountId: string) => void;
   // Bot Template Methods
   addBotTemplate: (name: string, description: string, price: number, performance: number, winRate: number, trades: number, type: string, risk: 'Low' | 'Medium' | 'High', maxDrawdown: number) => void;
@@ -223,7 +223,7 @@ interface StoreContextType {
   rejectTransaction: (transactionId: string) => void;
   getUserById: (userId: string) => User | undefined;
   getUserTransactions: (userId: string) => Transaction[];
-  convertFundedToBalance: (userId?: string) => void;
+
   adminCreateBot: (userId: string, botName: string, allocatedAmount: number, performance: number, totalEarned?: number) => void;
   adminCreateSignal: (userId: string, providerName: string, allocation: number, winRate: number, cost?: number) => void;
   approveKYC: (userId: string) => void;
@@ -3131,8 +3131,12 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
   const toggleBot = (active: boolean) => setBotActive(active);
 
   // Funded Account Methods
-  const purchaseFundedAccount = (planId: string, planName: string, capital: number, price: number, profitTarget: number, maxDrawdown: number) => {
-    if (!user || (user.balance ?? 0) < price) return;
+  const purchaseFundedAccount = async (planId: string, planName: string, capital: number, price: number, profitTarget: number, maxDrawdown: number) => {
+    if (!user || (user.balance ?? 0) < price) {
+      alert('❌ Insufficient balance');
+      return;
+    }
+    
     // deduct cost if applicable
     if (price > 0) {
       setAccount((prev) => ({ ...prev, balance: prev.balance - price }));
@@ -3144,6 +3148,7 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
       // Sync balance to Supabase
       syncUserBalance(user.id, newBalance);
     }
+    
     const accountObj: FundedAccountPurchase = {
       id: generateId(),
       userId: user.id,
@@ -3159,84 +3164,162 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
     };
     setPurchasedFundedAccounts((prev) => [...prev, accountObj]);
     
-    // Sync to Supabase
-    (async () => {
-      try {
-        await supabase
-          .from('user_funded_accounts')
-          .insert({
-            id: accountObj.id,
-            user_id: accountObj.userId,
-            plan_id: accountObj.planId,
-            plan_name: accountObj.planName,
-            capital: accountObj.capital,
-            price: accountObj.price,
-            profit_target: accountObj.profitTarget,
-            max_drawdown: accountObj.maxDrawdown,
-            status: accountObj.status,
-            current_balance: accountObj.capital,
-            purchased_at: new Date(accountObj.purchasedAt).toISOString()
-          })
-          .select();
-        
-        if (error) {
-          console.error('❌ Error syncing funded account:', error.code, '-', error.message);
-        } else {
-          console.log('✅ Funded account synced:', data);
-        }
-      } catch (err: any) {
-        console.error('❌ Error syncing funded account:', err.message);
+    // Sync to Supabase - AWAIT THIS
+    try {
+      // Get the actual Supabase user ID by querying user_profiles
+      const { data: userProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+      
+      if (profileError || !userProfile) {
+        console.error('❌ Could not find user profile:', profileError?.message);
+        alert('❌ Error: Could not find your user profile in database');
+        return;
       }
-    })();
-    
-    alert('✅ Funded account purchase request submitted');
+      
+      const supabaseUserId = userProfile.id;
+      console.log('📍 Using Supabase user ID:', supabaseUserId);
+      
+      const { data, error } = await supabase
+        .from('user_funded_accounts')
+        .insert({
+          id: accountObj.id,
+          user_id: supabaseUserId,
+          plan_name: accountObj.planName,
+          capital: accountObj.capital,
+          price: accountObj.price,
+          profit_target: accountObj.profitTarget,
+          max_drawdown: accountObj.maxDrawdown,
+          status: accountObj.status,
+          current_balance: accountObj.capital,
+          purchased_at: new Date(accountObj.purchasedAt).toISOString()
+        })
+        .select();
+      
+      if (error) {
+        console.error('❌ Error syncing funded account:', error.code, '-', error.message);
+        alert(`❌ Error syncing to database: ${error.message}`);
+        return;
+      }
+      
+      console.log('✅ Funded account synced:', data);
+      alert('✅ Funded account purchase request submitted successfully!');
+    } catch (err: any) {
+      console.error('❌ Error syncing funded account:', err.message);
+      alert(`❌ Error: ${err.message}`);
+    }
   };
 
-  const approveFundedAccount = (accountId: string) => {
-    // find account first then update state so we have the data
-    let approved: FundedAccountPurchase | undefined;
-    setPurchasedFundedAccounts((prev) =>
-      prev.map((acc) => {
-        if (acc.id === accountId) {
-          approved = { ...acc, status: 'ACTIVE', approvedAt: Date.now() };
-          return approved;
-        }
-        return acc;
-      })
-    );
-    if (approved) {
+  const approveFundedAccount = async (accountId: string) => {
+    console.log('🔵 Starting funded account approval for:', accountId);
+    
+    try {
+      // Find the account to approve
+      const accountToApprove = purchasedFundedAccounts.find(acc => acc.id === accountId);
+      if (!accountToApprove) {
+        console.error('❌ Account not found:', accountId);
+        alert('❌ Account not found');
+        return;
+      }
+
+      console.log('📋 Found account:', accountToApprove);
+
+      // Get the user's actual Supabase ID from user_profiles
+      const approvedUser = allUsers.find(u => u.id === accountToApprove.userId);
+      if (!approvedUser) {
+        console.error('❌ User not found for account');
+        alert('❌ User not found');
+        return;
+      }
+
+      console.log('👤 Found user:', approvedUser.email);
+
+      const { data: userProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', approvedUser.email)
+        .single();
+
+      if (profileError || !userProfile) {
+        console.error('❌ Could not find user profile in database:', profileError?.message);
+        alert('❌ Could not find user profile in database');
+        return;
+      }
+
+      const supabaseUserId = userProfile.id;
+      console.log('📍 Using Supabase user ID:', supabaseUserId);
+
+      // Calculate new balance BEFORE updating anything
+      const currentBalance = allUsers.find(u => u.id === accountToApprove.userId)?.balance ?? 0;
+      const newBalance = currentBalance + accountToApprove.capital;
+      console.log(`💰 Current balance: $${currentBalance}, Capital: $${accountToApprove.capital}, New balance: $${newBalance}`);
+
+      // Update balance in Supabase first
+      const { error: balanceError } = await supabase
+        .from('user_balances')
+        .upsert({
+          user_id: supabaseUserId,
+          balance: newBalance
+        }, { onConflict: 'user_id' });
+
+      if (balanceError) {
+        console.error('❌ Error updating balance in Supabase:', balanceError.message);
+        alert('❌ Error crediting balance to user');
+        return;
+      }
+
+      console.log(`✅ Balance updated in Supabase for user ${supabaseUserId}: $${newBalance}`);
+
+      // Update funded account status in Supabase
+      const { error: updateError } = await supabase
+        .from('user_funded_accounts')
+        .update({
+          status: 'ACTIVE',
+          approved_at: new Date().toISOString()
+        })
+        .eq('id', accountId);
+
+      if (updateError) {
+        console.error('❌ Error updating funded account status:', updateError.message);
+        alert('❌ Error updating account status in database');
+        return;
+      }
+
+      console.log('✅ Funded account status updated to ACTIVE');
+
+      // ALL DATABASE OPERATIONS SUCCESSFUL - NOW UPDATE LOCAL STATE
+      // Update the account status locally
+      setPurchasedFundedAccounts((prev) =>
+        prev.map((acc) =>
+          acc.id === accountId
+            ? { ...acc, status: 'ACTIVE', approvedAt: Date.now() }
+            : acc
+        )
+      );
+
+      // Update user balance in local state
       setAllUsers((prev) =>
         prev.map((u) =>
-          u.id === approved!.userId
-            ? { ...u, balance: (u.balance ?? 0) + approved!.capital }
+          u.id === accountToApprove.userId
+            ? { ...u, balance: newBalance }
             : u
         )
       );
-      // update current user/account if applicable
-      if (user && user.id === approved.userId) {
-        const newBal = (user.balance ?? 0) + approved.capital;
-        setUser({ ...user, balance: newBal });
-        setAccount((prev) => ({ ...prev, balance: newBal }));
-        // Sync balance to Supabase
-        syncUserBalance(user.id, newBal);
+
+      // Update current user if applicable
+      if (user && user.id === accountToApprove.userId) {
+        setUser({ ...user, balance: newBalance });
+        setAccount((prev) => ({ ...prev, balance: newBalance }));
       }
-      
-      // Sync approval to Supabase
-      (async () => {
-        try {
-          await supabase
-            .from('user_funded_accounts')
-            .update({
-              status: 'ACTIVE',
-              approved_at: new Date().toISOString()
-            })
-            .eq('id', accountId);
-        } catch (err) {
-          console.error('Error approving funded account:', err);
-        }
-      })();
+
+      console.log('✅ Local state updated successfully');
+      alert('✅ Funded account approved and capital credited!');
+    } catch (err: any) {
+      console.error('❌ Unexpected error in approveFundedAccount:', err.message);
+      alert(`❌ Error: ${err.message}`);
     }
-    alert('✅ Funded account approved and capital credited');
   };
 
   const rejectFundedAccount = (accountId: string) => {
@@ -3926,41 +4009,6 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
   };
 
 
-  // Convert active funded accounts for a user into main balance (one-way)
-  const convertFundedToBalance = (userId?: string) => {
-    const uid = userId || user?.id;
-    if (!uid) return;
-    const toConvert = purchasedFundedAccounts.filter(
-      (a) => a.userId === uid && a.status === 'ACTIVE'
-    );
-    if (toConvert.length === 0) {
-      alert('No active funded accounts to convert');
-      return;
-    }
-    const total = toConvert.reduce((s, a) => s + a.capital, 0);
-
-    // mark as completed/credited
-    setPurchasedFundedAccounts((prev) =>
-      prev.map((a) =>
-        a.userId === uid && a.status === 'ACTIVE'
-          ? { ...a, status: 'COMPLETED', creditedAt: Date.now() }
-          : a
-      )
-    );
-
-    // credit allUsers and current user/account if active
-    setAllUsers((prev) =>
-      prev.map((u) => (u.id === uid ? { ...u, balance: (u.balance ?? 0) + total } : u))
-    );
-    if (user && user.id === uid) {
-      const newBal = (user.balance ?? 0) + total;
-      setUser({ ...user, balance: newBal });
-      setAccount((prev) => ({ ...prev, balance: newBal }));
-    }
-
-    alert(`✅ Converted $${total.toFixed(2)} funded capital to main balance`);
-  };
-
   // Referral Methods
   const completeReferralReward = (referralId: string) => {
     const referral = referralRecords.find(r => r.id === referralId);
@@ -4255,7 +4303,7 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
         purchaseFundedAccount,
         approveFundedAccount,
         rejectFundedAccount,
-        convertFundedToBalance,
+
         adminCreateBot,
         adminCreateSignal,
         adminCreateCopyTrade,

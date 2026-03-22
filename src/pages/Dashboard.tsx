@@ -19,7 +19,7 @@ interface DashboardProps {
   onNavigate: (page: string) => void;
 }
 export function Dashboard({ onNavigate }: DashboardProps) {
-  const { account, trades, user, assets, history, purchasedBots, purchasedSignals, purchasedCopyTrades, purchasedFundedAccounts, convertFundedToBalance } = useStore();
+  const { account, trades, user, assets, history, purchasedBots, purchasedSignals, purchasedCopyTrades, purchasedFundedAccounts } = useStore();
   
   const totalProfit = trades.reduce((sum, t) => sum + t.profit, 0);
   const botEarnings = purchasedBots.reduce((sum, b) => sum + b.totalEarned, 0);
@@ -66,18 +66,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </span>
         </div>
       </div>
-      <div className="flex gap-2 mt-2">
-        <button
-          onClick={() => convertFundedToBalance()}
-          disabled={fundedCapital <= 0}
-          className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-mono font-bold rounded disabled:opacity-50"
-        >
-          Convert Funded → Balance
-        </button>
-        {fundedCapital <= 0 && (
-          <span className="text-xs text-gray-600 dark:text-[#8b949e] self-center">No funded capital</span>
-        )}
-      </div>
+
 
       {/* Top Bar Info */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-gray-600 dark:text-[#8b949e] border-b border-gray-300 dark:border-[#21262d] pb-4">
