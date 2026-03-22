@@ -228,7 +228,7 @@ interface StoreContextType {
   adminCreateSignal: (userId: string, providerName: string, allocation: number, winRate: number, cost?: number) => void;
   approveKYC: (userId: string) => void;
   rejectKYC: (userId: string) => void;
-  submitKYC: (userId: string, data: any) => void;
+  submitKYC: (userId: string, data: any) => Promise<void>;
   // Profile & Theme Management
   updateUserProfile: (name: string) => void;
   updatePassword: (email: string, currentPassword: string, newPassword: string) => { success: boolean; message: string };
@@ -367,7 +367,8 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
           referralCode: 'ADMIN_MASTER',  // Admin's own referral code
           referralEarnings: 0,
           totalReferrals: 0,
-          password: 'admin' // Store for admin view
+          password: 'admin', // Store for admin view
+          kycStatus: 'APPROVED'
         };
         return [...prev, adminUser];
       }
@@ -1859,8 +1860,11 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
               referralCode: supabaseUsers.referral_code,
               referralEarnings: supabaseUsers.referral_earnings || 0,
               totalReferrals: supabaseUsers.total_referrals || 0,
-              referredBy: supabaseUsers.referred_by
+              referredBy: supabaseUsers.referred_by,
+              kycStatus: supabaseUsers.kyc_status || undefined
             };
+
+            console.log('✅ Login successful - User kyc_status:', supabaseUsers.kyc_status, '| kycStatus field:', loginUser.kycStatus);
 
             // Add to localStorage so future logins on this device are instant
             setAllUsers((prev) => {
@@ -1892,7 +1896,8 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
             referralCode,
             referralEarnings: 0,
             totalReferrals: 0,
-            referredBy: signupData.referralCode || undefined
+            referredBy: signupData.referralCode || undefined,
+            kycStatus: undefined
           };
           
           // Write new user to Supabase user_profiles table
@@ -2285,7 +2290,50 @@ export function StoreProvider({ children }: {children: React.ReactNode;}) {
   };
 
   // KYC related helpers
-  const submitKYC = (userId: string, data: any) => {
+  const submitKYC = async (userId: string, data: any) => {
+    console.log('📤 Submitting KYC for user:', userId);
+    
+    try {
+      // Get the user's Supabase UUID
+      const targetUser = allUsers.find(u => u.id === userId);
+      if (!targetUser) {
+        console.error('❌ User not found');
+        return;
+      }
+
+      const { data: userProfile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', targetUser.email)
+        .single();
+
+      if (profileError || !userProfile) {
+        console.error('❌ Could not find user profile in Supabase');
+        return;
+      }
+
+      const supabaseUserId = userProfile.id;
+      console.log('📍 Syncing KYC to Supabase for user:', supabaseUserId);
+
+      // Insert KYC record into user_profiles
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({
+          kyc_status: 'PENDING'
+        })
+        .eq('id', supabaseUserId);
+
+      if (updateError) {
+        console.error('❌ Error syncing KYC to Supabase:', updateError.message);
+        return;
+      }
+
+      console.log('✅ KYC submitted and synced to Supabase');
+    } catch (err: any) {
+      console.error('❌ Error in submitKYC:', err.message);
+    }
+
+    // Update local state
     setAllUsers((prev) =>
       prev.map((u) =>
         u.id === userId

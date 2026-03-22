@@ -4,6 +4,14 @@ import { useStore } from '../lib/store';
 
 export function KYCPage() {
   const [step, setStep] = useState(1);
+  const { user, submitKYC } = useStore();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('📋 KYC Page - User:', user);
+    console.log('🔍 KYC Status:', user?.kycStatus);
+    console.log('📝 Show Form?', user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED' || !user?.kycStatus);
+  }, [user]);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -82,11 +90,9 @@ export function KYCPage() {
     if (step > 1) setStep(step - 1);
   };
 
-  const { user, submitKYC } = useStore();
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (formData.agreedToTerms && user) {
-      submitKYC(user.id, formData);
+      await submitKYC(user.id, formData);
       setStep(6);
     }
   };
@@ -109,6 +115,9 @@ export function KYCPage() {
     }
     if (user?.kycStatus === 'REJECTED') {
       setStep(1); // allow resubmission from step 1
+    }
+    if (user?.kycStatus === 'NOT_SUBMITTED' || !user?.kycStatus) {
+      setStep(1); // show form for new users
     }
   }, [user?.kycStatus]);
 
@@ -159,8 +168,8 @@ export function KYCPage() {
         </div>
       </div>
 
-      {/* Progress Steps - Only show when no KYC status or rejected */}
-      {(!user?.kycStatus || user?.kycStatus === 'REJECTED') && (
+      {/* Progress Steps - Only show when NOT_SUBMITTED or rejected */}
+      {(user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED') && (
         <div className="bg-gray-100 dark:bg-[#161b22] border border-gray-300 dark:border-[#21262d] rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
             {steps.map((s, idx) => (
@@ -197,7 +206,7 @@ export function KYCPage() {
       )}
 
       {/* Step 1: Personal Information */}
-      {step === 1 && (!user?.kycStatus || user?.kycStatus === 'REJECTED') && (
+      {step === 1 && (user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED') && (
         <div className="bg-gray-100 dark:bg-[#161b22] border border-gray-300 dark:border-[#21262d] rounded-lg p-6 space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Personal Information</h2>
@@ -277,7 +286,7 @@ export function KYCPage() {
       )}
 
       {/* Step 2: Address Information */}
-      {step === 2 && (!user?.kycStatus || user?.kycStatus === 'REJECTED') && (
+      {step === 2 && (user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED') && (
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">Residential Address</h2>
@@ -354,7 +363,7 @@ export function KYCPage() {
       )}
 
       {/* Step 3: ID Document Upload */}
-      {step === 3 && (!user?.kycStatus || user?.kycStatus === 'REJECTED') && (
+      {step === 3 && (user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED') && (
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">Government ID Document</h2>
@@ -464,7 +473,7 @@ export function KYCPage() {
       )}
 
       {/* Step 4: Selfie Verification */}
-      {step === 4 && (!user?.kycStatus || user?.kycStatus === 'REJECTED') && (
+      {step === 4 && (user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED') && (
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">Selfie Verification</h2>
@@ -529,7 +538,7 @@ export function KYCPage() {
       )}
 
       {/* Step 5: Review and Submit */}
-      {step === 5 && (!user?.kycStatus || user?.kycStatus === 'REJECTED') && (
+      {step === 5 && (user?.kycStatus === 'NOT_SUBMITTED' || user?.kycStatus === 'REJECTED') && (
         <div className="bg-[#161b22] border border-[#21262d] rounded-lg p-6 space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">Review Information</h2>
